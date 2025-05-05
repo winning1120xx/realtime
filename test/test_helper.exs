@@ -1,8 +1,11 @@
 alias Ecto.Adapters.SQL.Sandbox
 alias Realtime.Api
 alias Realtime.Database
-ExUnit.start(exclude: [:failing], max_cases: 1)
+ExUnit.start(exclude: [:failing], max_cases: 4, capture_log: true)
 Containers.stop_containers()
+
+# Maybe move this into a module
+{:ok, _pid} = Agent.start_link(fn -> Enum.shuffle(5500..9000) end, name: :available_db_ports)
 
 for tenant <- Api.list_tenants() do
   Api.delete_tenant(tenant)
@@ -10,13 +13,16 @@ end
 
 tenant_name = "dev_tenant"
 publication = "supabase_realtime_test"
-port = Enum.random(5500..9000)
+port = Generators.port()
 opts = %{external_id: tenant_name, name: tenant_name, port: port, jwt_secret: "secure_jwt_secret"}
 tenant = Generators.tenant_fixture(opts)
 
 # Start dev_realtime container to be used in integration tests
 Containers.initialize(tenant, true, true)
 {:ok, conn} = Database.connect(tenant, "realtime_seed", :stop)
+
+{:ok, _pid} =
+  :poolboy.start_link([name: {:local, Containers}, size: 4, max_overflow: 0, worker_module: Containers.Container], [])
 
 Database.transaction(conn, fn db_conn ->
   queries = [
@@ -48,10 +54,4 @@ Task.await_many(
   :infinity
 )
 
-ExUnit.after_suite(fn _ ->
-  Sandbox.checkout(Realtime.Repo)
-
-  Enum.each(tenants, &Realtime.Api.delete_tenant/1)
-end)
-
-Ecto.Adapters.SQL.Sandbox.mode(Realtime.Repo, :auto)
+Sandbox.mode(Realtime.Repo, :auto)
