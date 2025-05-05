@@ -12,7 +12,7 @@ defmodule Realtime.Tenants.ReplicationConnectionTest do
     slot = Application.get_env(:realtime, :slot_name_suffix)
     Application.put_env(:realtime, :slot_name_suffix, "test")
 
-    tenant = Containers.checkout_tenant(true)
+    tenant = Containers.checkout_tenant_v2(run_migrations: true)
 
     {:ok, db_conn} = Database.connect(tenant, "realtime_test", :stop)
     name = "supabase_realtime_messages_replication_slot_test"
@@ -22,7 +22,6 @@ defmodule Realtime.Tenants.ReplicationConnectionTest do
 
     on_exit(fn ->
       Application.put_env(:realtime, :slot_name_suffix, slot)
-      Containers.checkin_tenant(tenant)
     end)
 
     %{tenant: tenant}
